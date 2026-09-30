@@ -1,8 +1,20 @@
 # Half-Life - GarlicOS (RG35XX) Port
 
-Half-Life on the Anbernic RG35XX running GarlicOS, using the open-source Xash3D FWGS engine
+Half-Life on the Anbernic RG35XX running GarlicOS, using the open-source Xash3D FWGS engine.
 
-You need: RG35XX with GarlicOS 1.4.9, the release zip, and your own Half-Life `valve/` data from Steam
+You need: RG35XX with GarlicOS 1.4.9, the release zip, and your own Half-Life `valve/` data from Steam.
+
+## Overview
+
+This is a **native port** - no emulation, no PC compatibility layers. The game engine and Half-Life's game logic are compiled from C/C++ source straight for the device's ARM CPU. To get there, the port works around three things the RG35XX can't do:
+
+* **Software rendering** - the device's GPU (PowerVR SGX544) has no working GL driver on GarlicOS, so the engine draws every frame in software directly to the framebuffer (`libref_soft.so`). Expect 30-40 fps at the native 640x480 - normal for this chip.
+* **musl libc** - the device ships a 2012-era system libc too old for anything modern compilers emit, so the port carries its own (`libc.so` + `ld-musl-armhf.so.1`, staged to `/tmp` at launch).
+* **Raw controller input** - no SDL gamepad stack on the device; buttons are read straight from Linux evdev, mapped in the engine source (face buttons, D-pad as arrows).
+
+What's in the zip is everything except the game itself: engine, game logic, dependencies, and runtime all cross-compiled for `armhf`. The actual game content (maps, models, sounds) is pure data that runs on any architecture - it stays in your `valve/` folder, supplied from your own copy of the game.
+
+What was compiled: the [Xash3D FWGS](https://github.com/FWGS/xash3d-fwgs) engine (open-source recreation of Half-Life's engine) and [hlsdk-portable](https://github.com/FWGS/hlsdk-portable) (Half-Life's released SDK, game logic), plus SDL2/freetype/ALSA as support libraries - all in Docker from source, with device-specific patches applied first (see `Dockerfile`). The original 1998 Half-Life code was never released and is not part of this.
 
 ## Install
 
