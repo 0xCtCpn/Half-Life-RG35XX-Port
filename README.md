@@ -47,6 +47,7 @@ Only needed if you change the engine or want fresh binaries
 Prerequisites:
 
 * Windows PC with Docker Desktop installed
+* WSL2 enabled - this is Docker Desktop's backend on Windows. Needs virtualization turned on in BIOS, plus a reboot on first setup (Docker Desktop installs the WSL2 kernel for you)
 * ~10GB free disk
 
 Steps:
