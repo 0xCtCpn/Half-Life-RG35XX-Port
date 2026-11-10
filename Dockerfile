@@ -28,8 +28,14 @@ RUN cd SDL2 && ./autogen.sh 2>/dev/null || autoreconf -fi; \
     && make -j$(nproc) && make install
 
 # freetype2 for ARM (Xash mainui menu requires it)
-RUN (curl -sSL --retry 3 --retry-all-errors https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.gz -o freetype.tar.gz || \
-    curl -sSL --retry 3 --retry-all-errors https://github.com/freetype/freetype/releases/download/VER-2-13-2/freetype-2.13.2.tar.gz -o freetype.tar.gz) && \
+RUN for url in \
+      https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.gz \
+      https://github.com/freetype/freetype/releases/download/VER-2-13-2/freetype-2.13.2.tar.gz \
+      https://sourceforge.net/projects/freetype/files/freetype2/2.13.2/freetype-2.13.2.tar.gz/download ; do \
+      curl -fSL --retry 3 --retry-all-errors "$url" -o freetype.tar.gz && \
+      [ $(stat -c%s freetype.tar.gz) -gt 1000000 ] && break || rm -f freetype.tar.gz; \
+    done; \
+    test -f freetype.tar.gz && \
     tar xzf freetype.tar.gz && cd freetype-2.13.2 && \
     CC=${MUSL_TRIPLE}-gcc \
     CFLAGS="-march=armv7-a -mfpu=neon -mfloat-abi=hard -O2" \
@@ -140,6 +146,31 @@ s = rx.sub(lambda m: hatblock + m.group(0), s, count=1)
 open(p, "w").write(s)
 print("input patch ok")
 PYEOF3
+# Input patch round 3: L2/R2 shelf buttons report as digital ABS axes
+# (pad ABS bitmap 0x3003f), not EV_KEY -- the BTN_TL2/TR2 cases above never
+# fire. Map them to the same engine keys ('r' reload / 'f' flashlight).
+RUN python3 - <<'PYEOF6'
+import re
+p = "xash3d-fwgs/engine/platform/linux/in_evdev.c"
+s = open(p).read()
+def once(pat, flags=0):
+    rx = re.compile(pat, flags)
+    ms = rx.findall(s)
+    assert len(ms) == 1, "anchor issue: " + pat
+    return rx
+
+# 1. trigger state, after hat state arrays
+rx = once(r"static int evdev_hat_y\[MAX_EVDEV_DEVICES\];")
+s = rx.sub(lambda m: m.group(0) + "\nstatic int evdev_trig_z[MAX_EVDEV_DEVICES];\nstatic int evdev_trig_rz[MAX_EVDEV_DEVICES];", s, count=1)
+
+# 2. trigger block, inside the EV_ABS branch before the dpad-as-hat comment
+rx = once(r"/\* dpad-as-hat: arrows with release tracking \*/")
+trig = "/* RG35XX L2/R2 shelf buttons: digital axes, not keys (ABS bitmap 0x3003f) */\n\t\t\t\tif( ev.code == ABS_Z || ev.code == ABS_RZ )\n\t\t\t\t{\n\t\t\t\t\tint tkey = ( ev.code == ABS_Z ) ? 'r' : 'f'; /* same bindings as BTN_TL2/TR2 */\n\t\t\t\t\tint *tlast = ( ev.code == ABS_Z ) ? &evdev_trig_z[i] : &evdev_trig_rz[i];\n\t\t\t\t\tint tcur = ( ev.value != 0 );\n\t\t\t\t\tif( tcur != *tlast )\n\t\t\t\t\t{\n\t\t\t\t\t\tif( evdev_keydebug.value ) Con_Printf( \"trig %d val %d\\n\", ev.code, ev.value );\n\t\t\t\t\t\tKey_Event( tkey, tcur );\n\t\t\t\t\t\t*tlast = tcur;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t"
+s = rx.sub(lambda m: trig + m.group(0), s, count=1)
+
+open(p, "w").write(s)
+print("input patch 3 ok")
+PYEOF6
 # Input patch round 2: open letter-key gamepads (RG35XX original emits
 # Q,W,R,T,Y,U,I,[,],ENTER,LEFTCTRL,A -- no BTN_*, no SPACE, so the stock
 # keyboard/mouse/hat checks all miss it). LEFTCTRL doubles as menu-back

@@ -5,6 +5,7 @@ valve/
 
 # Local SD deploy staging (duplicates out/ + valve/, machine-specific)
 HalfLife_SD/
+HLv2upd/
 
 # Device debug breadcrumbs - generated on RG35XX at runtime
 debug.log
